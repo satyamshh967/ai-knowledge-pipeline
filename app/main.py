@@ -1,7 +1,7 @@
 from app.chunking import chunk_document
 from app.embeddings import EmbeddingModel
 from app.ingestion import fetch_webpage
-from app.search import SemanticSearch
+from app.vector_store import VectorStore
 
 
 def main():
@@ -16,27 +16,31 @@ def main():
 
     embeddings = embedding_model.embed_chunks(chunks)
 
-    search_engine = SemanticSearch(embedding_model)
+    vector_store = VectorStore()
+
+    vector_store.add_chunks(
+        chunks,
+        embeddings
+    )
 
     query = "What is machine learning?"
 
-    results = search_engine.search(
-        query,
-        chunks,
-        embeddings,
+    query_embedding = embedding_model.model.encode(query)
+
+    results = vector_store.search(
+        query_embedding,
         top_k=3
     )
 
     print(f"\nQuery: {query}")
-    print("\nMost relevant chunks:\n")
+    print("\nRetrieved chunks:\n")
 
-    for result in results:
-        chunk = result["chunk"]
-        score = result["score"]
+    for i, document in enumerate(results["documents"][0]):
+        distance = results["distances"][0][i]
 
-        print(f"--- Score: {score:.4f} ---")
-        print(f"Chunk position: {chunk.position}")
-        print(chunk.content[:500])
+        print(f"--- Result {i + 1} ---")
+        print(f"Distance: {distance:.4f}")
+        print(document[:500])
         print()
 
 
