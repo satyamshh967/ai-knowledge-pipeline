@@ -1,4 +1,5 @@
 from app.chunking import chunk_document
+from app.context import build_context
 from app.embeddings import EmbeddingModel
 from app.ingestion import fetch_webpage
 from app.retrieval import RetrievalService
@@ -30,21 +31,18 @@ def main():
 
     query = "What is machine learning?"
 
-    results = retrieval_service.retrieve(
+    retrieved_chunks = retrieval_service.retrieve(
         query,
         top_k=3
     )
 
-    print(f"\nQuery: {query}")
-    print("\nRetrieved chunks:\n")
+    context = build_context(retrieved_chunks)
 
-    for i, content in enumerate(results["documents"][0]):
-        distance = results["distances"][0][i]
+    print("\n===== QUERY =====")
+    print(query)
 
-        print(f"--- Result {i + 1} ---")
-        print(f"Distance: {distance:.4f}")
-        print(content[:500])
-        print()
+    print("\n===== RETRIEVED CONTEXT =====")
+    print(context)
 
 
 if __name__ == "__main__":

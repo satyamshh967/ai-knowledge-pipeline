@@ -21,3 +21,10 @@ class Chunk(BaseModel):
     content: str
     position: int
     metadata: dict = Field(default_factory=dict)
+    
+    
+class RetrievedChunk(BaseModel):
+    content: str
+    score: float
+    document_id: UUID
+    position: int
