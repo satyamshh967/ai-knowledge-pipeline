@@ -1,6 +1,7 @@
 from app.chunking import chunk_document
 from app.embeddings import EmbeddingModel
 from app.ingestion import fetch_webpage
+from app.retrieval import RetrievalService
 from app.vector_store import VectorStore
 
 
@@ -13,7 +14,6 @@ def main():
     chunks = chunk_document(document)
 
     embedding_model = EmbeddingModel()
-
     embeddings = embedding_model.embed_chunks(chunks)
 
     vector_store = VectorStore()
@@ -23,24 +23,27 @@ def main():
         embeddings
     )
 
+    retrieval_service = RetrievalService(
+        embedding_model,
+        vector_store
+    )
+
     query = "What is machine learning?"
 
-    query_embedding = embedding_model.model.encode(query)
-
-    results = vector_store.search(
-        query_embedding,
+    results = retrieval_service.retrieve(
+        query,
         top_k=3
     )
 
     print(f"\nQuery: {query}")
     print("\nRetrieved chunks:\n")
 
-    for i, document in enumerate(results["documents"][0]):
+    for i, content in enumerate(results["documents"][0]):
         distance = results["distances"][0][i]
 
         print(f"--- Result {i + 1} ---")
         print(f"Distance: {distance:.4f}")
-        print(document[:500])
+        print(content[:500])
         print()
 
 

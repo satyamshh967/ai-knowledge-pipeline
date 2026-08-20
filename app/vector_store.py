@@ -16,7 +16,7 @@ class VectorStore:
         )
 
     def add_chunks(self, chunks: list[Chunk], embeddings):
-        self.collection.add(
+        self.collection.upsert(
             ids=[str(chunk.id) for chunk in chunks],
             embeddings=embeddings.tolist(),
             documents=[chunk.content for chunk in chunks],
