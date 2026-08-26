@@ -6,6 +6,7 @@ from app.llm import LLMService
 from app.rag import RAGService
 from app.retrieval import RetrievalService
 from app.vector_store import VectorStore
+from app.document_service import DocumentService
 
 
 app = FastAPI(
@@ -21,6 +22,17 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
+
+
+class DocumentRequest(BaseModel):
+    url: str
+    title: str
+
+
+class DocumentResponse(BaseModel):
+    document_id: str
+    title: str
+    chunks_created: int
 
 
 # Initialize our RAG components once when the API starts.
@@ -40,6 +52,11 @@ rag_service = RAGService(
     llm_service
 )
 
+document_service = DocumentService(
+    embedding_model,
+    vector_store
+)
+
 
 @app.get("/")
 def root():
@@ -57,4 +74,18 @@ def query(request: QueryRequest):
 
     return {
         "answer": answer
+    }
+
+
+@app.post("/documents", response_model=DocumentResponse)
+def create_document(request: DocumentRequest):
+    document, chunks = document_service.ingest_url(
+        request.url,
+        request.title
+    )
+
+    return {
+        "document_id": str(document.id),
+        "title": document.title,
+        "chunks_created": len(chunks)
     }
