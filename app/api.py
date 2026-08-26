@@ -20,9 +20,15 @@ class QueryRequest(BaseModel):
     question: str
 
 
+class Source(BaseModel):
+    document_id: str
+    chunk_position: int
+    score: float
+
+
 class QueryResponse(BaseModel):
     answer: str
-
+    sources: list[Source]
 
 class DocumentRequest(BaseModel):
     url: str
@@ -67,15 +73,24 @@ def root():
 
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest):
-    answer = rag_service.answer(
+    answer, retrieved_chunks = rag_service.answer(
         request.question,
         top_k=3
     )
 
-    return {
-        "answer": answer
-    }
+    sources = [
+        Source(
+            document_id=str(chunk.document_id),
+            chunk_position=chunk.position,
+            score=chunk.score
+        )
+        for chunk in retrieved_chunks
+    ]
 
+    return {
+        "answer": answer,
+        "sources": sources
+    }
 
 @app.post("/documents", response_model=DocumentResponse)
 def create_document(request: DocumentRequest):

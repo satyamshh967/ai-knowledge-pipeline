@@ -16,8 +16,7 @@ class RAGService:
         self,
         question: str,
         top_k: int = 3
-    ) -> str:
-
+    ):
         retrieved_chunks = self.retrieval_service.retrieve(
             question,
             top_k=top_k
@@ -25,7 +24,9 @@ class RAGService:
 
         context = build_context(retrieved_chunks)
 
-        return self.llm_service.generate(
+        answer = self.llm_service.generate(
             question,
             context
         )
+
+        return answer, retrieved_chunks
