@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.embeddings import EmbeddingModel
 from app.llm import LLMService
@@ -18,6 +18,7 @@ app = FastAPI(
 
 class QueryRequest(BaseModel):
     question: str
+    top_k: int = Field(default=3, ge=1, le=10)
 
 
 class Source(BaseModel):
@@ -74,9 +75,9 @@ def root():
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest):
     answer, retrieved_chunks = rag_service.answer(
-        request.question,
-        top_k=3
-    )
+    request.question,
+    top_k=request.top_k
+)
 
     sources = [
         Source(

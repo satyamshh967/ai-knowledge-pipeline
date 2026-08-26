@@ -61,3 +61,24 @@ def test_document_and_query_flow():
     assert query_data["answer"]
     assert "sources" in query_data
     assert len(query_data["sources"]) > 0
+    
+def test_query_top_k_validation():
+    response = client.post(
+        "/query",
+        json={
+            "question": "What is machine learning?",
+            "top_k": 0
+        }
+    )
+
+    assert response.status_code == 422
+
+    response = client.post(
+        "/query",
+        json={
+            "question": "What is machine learning?",
+            "top_k": 11
+        }
+    )
+
+    assert response.status_code == 422
