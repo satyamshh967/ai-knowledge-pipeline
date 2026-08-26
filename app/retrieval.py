@@ -37,12 +37,14 @@ class RetrievalService:
             metadatas
         ):
             retrieved_chunks.append(
-                RetrievedChunk(
-                    content=document,
-                    score=1 - distance,
-                    document_id=metadata["document_id"],
-                    position=metadata["position"]
-                )
-            )
+    RetrievedChunk(
+        content=document,
+        score=1 - distance,
+        document_id=metadata["document_id"],
+        position=metadata["position"],
+        title=metadata.get("title", ""),
+        source=metadata.get("source", "")
+    )
+)
 
         return retrieved_chunks

@@ -21,12 +21,14 @@ class VectorStore:
             embeddings=embeddings.tolist(),
             documents=[chunk.content for chunk in chunks],
             metadatas=[
-                {
-                    "document_id": str(chunk.document_id),
-                    "position": chunk.position,
-                }
-                for chunk in chunks
-            ],
+    {
+        "document_id": str(chunk.document_id),
+        "position": chunk.position,
+        "title": chunk.metadata.get("title", ""),
+        "source": chunk.metadata.get("source", ""),
+    }
+    for chunk in chunks
+],
         )
 
     def search(self, query_embedding, top_k: int = 3):
