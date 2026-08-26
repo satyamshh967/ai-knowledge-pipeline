@@ -33,7 +33,7 @@ class QueryResponse(BaseModel):
 
 class DocumentRequest(BaseModel):
     url: str
-    title: str
+    title: str = Field(min_length=1, max_length=200)
 
 
 class DocumentResponse(BaseModel):
