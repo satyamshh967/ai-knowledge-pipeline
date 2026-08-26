@@ -1,7 +1,8 @@
 from app.chunking import chunk_document
-from app.context import build_context
 from app.embeddings import EmbeddingModel
 from app.ingestion import fetch_webpage
+from app.llm import LLMService
+from app.rag import RAGService
 from app.retrieval import RetrievalService
 from app.vector_store import VectorStore
 
@@ -29,20 +30,25 @@ def main():
         vector_store
     )
 
-    query = "What is machine learning?"
+    llm_service = LLMService()
 
-    retrieved_chunks = retrieval_service.retrieve(
-        query,
+    rag = RAGService(
+        retrieval_service,
+        llm_service
+    )
+
+    question = "What is machine learning?"
+
+    answer = rag.answer(
+        question,
         top_k=3
     )
 
-    context = build_context(retrieved_chunks)
+    print("\n===== QUESTION =====")
+    print(question)
 
-    print("\n===== QUERY =====")
-    print(query)
-
-    print("\n===== RETRIEVED CONTEXT =====")
-    print(context)
+    print("\n===== ANSWER =====")
+    print(answer)
 
 
 if __name__ == "__main__":
