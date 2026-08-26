@@ -82,3 +82,27 @@ def test_query_top_k_validation():
     )
 
     assert response.status_code == 422
+
+def test_query_empty_question():
+    response = client.post(
+        "/query",
+        json={
+            "question": "   ",
+            "top_k": 3
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Question cannot be empty."
+    
+def test_document_empty_title():
+    response = client.post(
+        "/documents",
+        json={
+            "url": "https://example.com",
+            "title": "   "
+        }
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "Title cannot be empty."
