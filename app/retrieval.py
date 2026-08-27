@@ -15,7 +15,8 @@ class RetrievalService:
     def retrieve(
         self,
         query: str,
-        top_k: int = 3
+        top_k: int = 3,
+        min_score: float = 0.35
     ) -> list[RetrievedChunk]:
 
         query_embedding = self.embedding_model.model.encode(query)
@@ -36,15 +37,19 @@ class RetrievalService:
             distances,
             metadatas
         ):
-            retrieved_chunks.append(
-    RetrievedChunk(
-        content=document,
-        score=1 - distance,
-        document_id=metadata["document_id"],
-        position=metadata["position"],
-        title=metadata.get("title", ""),
-        source=metadata.get("source", "")
-    )
-)
+
+            score = 1 / (1 + distance)
+
+            chunk = RetrievedChunk(
+                content=document,
+                score=score,
+                document_id=metadata["document_id"],
+                position=metadata["position"],
+                title=metadata.get("title", ""),
+                source=metadata.get("source", "")
+            )
+
+            if chunk.score >= min_score:
+                retrieved_chunks.append(chunk)
 
         return retrieved_chunks

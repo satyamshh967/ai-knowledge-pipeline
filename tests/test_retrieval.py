@@ -1,4 +1,5 @@
 from uuid import uuid4
+import pytest
 
 from app.models import RetrievedChunk
 from app.retrieval import RetrievalService
@@ -63,4 +64,4 @@ def test_retrieval_returns_chunks():
 
     assert results[0].position == 0
 
-    assert results[0].score == 0.8
+    assert results[0].score == pytest.approx(1 / (1 + 0.2))

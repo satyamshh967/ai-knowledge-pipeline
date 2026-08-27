@@ -24,7 +24,6 @@ class Chunk(BaseModel):
     
     
 class RetrievedChunk(BaseModel):
-
     content: str
     score: float
     document_id: UUID
