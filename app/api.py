@@ -1,5 +1,5 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from app.embeddings import EmbeddingModel
 from app.llm import LLMService
@@ -19,6 +19,7 @@ app = FastAPI(
 
 class QueryRequest(BaseModel):
     question: str
+    top_k: int = Field(default=3, ge=1, le=10)
 
 
 class Source(BaseModel):
@@ -41,6 +42,13 @@ class DocumentResponse(BaseModel):
     document_id: str
     title: str
     chunks_created: int
+
+
+class DocumentSummary(BaseModel):
+    document_id: str
+    title: str
+    source: str
+    created_at: str
 
 
 # Initialize our RAG components once when the API starts.
@@ -80,9 +88,15 @@ def root():
 @app.post("/query", response_model=QueryResponse)
 def query(request: QueryRequest):
 
+    if not request.question.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Question cannot be empty."
+        )
+
     answer, retrieved_chunks = rag_service.answer(
         request.question,
-        top_k=3
+        top_k=request.top_k
     )
 
     sources = [
@@ -103,6 +117,12 @@ def query(request: QueryRequest):
 @app.post("/documents", response_model=DocumentResponse)
 def create_document(request: DocumentRequest):
 
+    if not request.title.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Title cannot be empty."
+        )
+
     document, chunks = document_service.ingest_url(
         request.url,
         request.title
@@ -112,4 +132,51 @@ def create_document(request: DocumentRequest):
         "document_id": str(document.id),
         "title": document.title,
         "chunks_created": len(chunks)
+    }
+
+
+@app.get("/documents", response_model=list[DocumentSummary])
+def get_documents():
+
+    documents = document_repository.get_all()
+
+    return [
+        DocumentSummary(
+            document_id=str(document.id),
+            title=document.title,
+            source=str(document.source),
+            created_at=document.created_at.isoformat()
+        )
+        for document in documents
+    ]
+
+
+@app.get("/documents/{document_id}")
+def get_document(document_id: str):
+
+    from uuid import UUID
+
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID."
+        )
+
+    document = document_repository.get(document_uuid)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    return {
+        "document_id": str(document.id),
+        "title": document.title,
+        "source": str(document.source),
+        "content": document.content,
+        "created_at": document.created_at.isoformat(),
+        "metadata": document.metadata
     }
