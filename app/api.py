@@ -1,3 +1,4 @@
+from uuid import UUID
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
@@ -179,4 +180,71 @@ def get_document(document_id: str):
         "content": document.content,
         "created_at": document.created_at.isoformat(),
         "metadata": document.metadata
+    }
+    
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: str):
+
+    from uuid import UUID
+
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID."
+        )
+
+    deleted = document_service.delete_document(
+        document_uuid
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    return {
+        "message": "Document deleted successfully.",
+        "document_id": document_id
+    }
+    
+@app.delete("/documents/{document_id}")
+def delete_document(document_id: str):
+
+    try:
+        document_uuid = UUID(document_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid document ID."
+        )
+
+    document = document_repository.get(document_uuid)
+
+    if document is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    deleted_chunks = vector_store.delete_by_document_id(
+        str(document_uuid)
+    )
+
+    deleted = document_repository.delete(
+        document_uuid
+    )
+
+    if not deleted:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found."
+        )
+
+    return {
+        "message": "Document deleted successfully.",
+        "document_id": str(document_uuid),
+        "chunks_deleted": deleted_chunks
     }

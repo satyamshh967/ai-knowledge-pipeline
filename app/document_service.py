@@ -1,6 +1,9 @@
+from uuid import UUID
+
 from app.chunking import chunk_document
 from app.embeddings import EmbeddingModel
 from app.ingestion import fetch_webpage
+from app.models import Document, Chunk
 from app.vector_store import VectorStore
 from app.document_repository import DocumentRepository
 
@@ -11,17 +14,18 @@ class DocumentService:
         self,
         embedding_model: EmbeddingModel,
         vector_store: VectorStore,
-        repository: DocumentRepository
+        document_repository: DocumentRepository
     ):
         self.embedding_model = embedding_model
         self.vector_store = vector_store
-        self.repository = repository
+        self.document_repository = document_repository
 
     def ingest_url(
         self,
         url: str,
         title: str
     ):
+
         document = fetch_webpage(
             url,
             title
@@ -30,10 +34,6 @@ class DocumentService:
         chunks = chunk_document(
             document
         )
-
-        for chunk in chunks:
-            chunk.metadata["title"] = document.title
-            chunk.metadata["source"] = str(document.source)
 
         embeddings = self.embedding_model.embed_chunks(
             chunks
@@ -44,8 +44,30 @@ class DocumentService:
             embeddings
         )
 
-        self.repository.add(
+        self.document_repository.add(
             document
         )
 
         return document, chunks
+
+    def delete_document(
+        self,
+        document_id: UUID
+    ):
+
+        document = self.document_repository.get(
+            document_id
+        )
+
+        if document is None:
+            return False
+
+        self.vector_store.delete_by_document_id(
+            str(document_id)
+        )
+
+        self.document_repository.delete(
+            document_id
+        )
+
+        return True
