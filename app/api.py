@@ -84,6 +84,12 @@ def root():
     return {
         "message": "AI Knowledge Pipeline API is running"
     }
+    
+@app.get("/health")
+def health_check():
+    return {
+        "status": "healthy"
+    }
 
 
 @app.post("/query", response_model=QueryResponse)
@@ -170,7 +176,7 @@ def get_document(document_id: str):
     if document is None:
         raise HTTPException(
             status_code=404,
-            detail="Document not found."
+            detail="Document not found"
         )
 
     return {
@@ -202,7 +208,7 @@ def delete_document(document_id: str):
     if not deleted:
         raise HTTPException(
             status_code=404,
-            detail="Document not found."
+            detail="Document not found"
         )
 
     return {
@@ -226,7 +232,7 @@ def delete_document(document_id: str):
     if document is None:
         raise HTTPException(
             status_code=404,
-            detail="Document not found."
+            detail="Document not found"
         )
 
     deleted_chunks = vector_store.delete_by_document_id(
@@ -240,7 +246,7 @@ def delete_document(document_id: str):
     if not deleted:
         raise HTTPException(
             status_code=404,
-            detail="Document not found."
+            detail="Document not found"
         )
 
     return {

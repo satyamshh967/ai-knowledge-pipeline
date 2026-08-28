@@ -3,11 +3,15 @@ from pathlib import Path
 import chromadb
 
 from app.models import Chunk
+from app.config import settings
 
 
 class VectorStore:
 
-    def __init__(self, path: str = "./data/chroma"):
+    def __init__(self, path: str | None = None):
+
+        if path is None:
+            path = settings.vector_store_path
 
         Path(path).mkdir(
             parents=True,
@@ -22,7 +26,11 @@ class VectorStore:
             name="knowledge"
         )
 
-    def add_chunks(self, chunks: list[Chunk], embeddings):
+    def add_chunks(
+        self,
+        chunks: list[Chunk],
+        embeddings
+    ):
 
         self.collection.upsert(
             ids=[

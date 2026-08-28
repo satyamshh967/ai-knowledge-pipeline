@@ -1,13 +1,18 @@
-import json
 from pathlib import Path
 from uuid import UUID
+import json
 
 from app.models import Document
+from app.config import settings
 
 
 class DocumentRepository:
 
-    def __init__(self, path: str = "./data/documents.json"):
+    def __init__(self, path: str | None = None):
+
+        if path is None:
+            path = settings.document_store_path
+
         self.path = Path(path)
 
         self.path.parent.mkdir(
@@ -32,6 +37,7 @@ class DocumentRepository:
         )
 
     def add(self, document: Document):
+
         documents = self._load()
 
         documents.append(
@@ -41,19 +47,23 @@ class DocumentRepository:
         self._save(documents)
 
     def get_all(self):
+
         return [
             Document(**document)
             for document in self._load()
         ]
 
     def get(self, document_id: UUID):
+
         for document in self.get_all():
+
             if document.id == document_id:
                 return document
 
         return None
 
     def delete(self, document_id: UUID):
+
         documents = self._load()
 
         remaining = [
