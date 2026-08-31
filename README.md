@@ -1,43 +1,44 @@
 AI Knowledge Pipeline
-
-A production-oriented Retrieval-Augmented Generation (RAG) API built
-with Python, FastAPI, Sentence Transformers, ChromaDB, and an
-OpenRouter-compatible LLM.
-
-The project is designed as more than a simple chatbot. Its goal is to
-demonstrate how a real knowledge system can ingest external documents,
-transform them into searchable vector representations, retrieve relevant
-knowledge for a user query, and generate an answer grounded in that
-retrieved context.
-
-Current status: Core document ingestion, chunking, embeddings,
-persistent vector storage, semantic retrieval, RAG generation, source
-attribution, document CRUD, validation, Dockerized deployment,
-automated tests, and a basic RAG evaluation pipeline are implemented.
-
+A backend-focused Retrieval-Augmented Generation (RAG) system that ingests knowledge from web pages, processes and stores that knowledge, retrieves relevant information using semantic search, and generates grounded answers through an LLM.
+Project Status
+Current stage: Core RAG pipeline implemented and being prepared for further production-oriented development.
+Currently implemented
+Web URL ingestion
+Webpage content extraction
+Document validation with Pydantic
+Overlapping text chunking
+Sentence Transformer embeddings
+ChromaDB vector storage
+Semantic similarity retrieval
+Relevance-score filtering
+RAG context construction
+OpenRouter LLM integration
+Source attribution
+PostgreSQL document persistence
+Document create/list/get/update/delete operations
+SQLAlchemy repository layer
+Request logging
+Request IDs
+Global error handling
+Docker and Docker Compose
+PostgreSQL health checks
+Automated tests
+Retrieval evaluation pipeline
+Environment-based configuration
+The project is intentionally still evolving. The future plan is to turn this core RAG backend into a more complete production-oriented AI knowledge platform.
+---
 Why I Built This
-
-I wanted to build a project that goes beyond basic CRUD APIs and
-demonstrates how multiple backend and AI components work together as one
-system.
-
-The central problem is:
-
-How can an application answer questions using a controlled knowledge
-base instead of relying entirely on the model's pretrained knowledge?
-
-This project addresses that problem through a RAG pipeline:
-
+A language model alone does not automatically know the information contained in a private or user-provided knowledge base.
+Retrieval-Augmented Generation solves this by separating the problem into two stages:
+Retrieve relevant information.
+Generate an answer using the retrieved information.
+This project was built to understand that complete pipeline from the backend side rather than simply calling an LLM API.
+The core flow is:
+```text
 User Question
       |
       v
-   FastAPI
-      |
-      v
- Query Embedding
-      |
-      v
-   ChromaDB
+Query Embedding
       |
       v
 Semantic Retrieval
@@ -46,1226 +47,1144 @@ Semantic Retrieval
 Relevant Chunks
       |
       v
-Context Builder
+Context Construction
       |
       v
-    LLM
+LLM
       |
       v
-Answer + Sources
+Grounded Answer + Sources
+```
+---
+Architecture
+```text
+                         Client
+                           |
+                           v
+                    +-------------+
+                    |   FastAPI   |
+                    |     API     |
+                    +------+------+
+                           |
+             +-------------+-------------+
+             |                           |
+             v                           v
+      Document Operations           Query / RAG
+             |                           |
+             v                           v
+     DocumentService             RetrievalService
+             |                           |
+       +-----+------+                    |
+       |            |                    |
+       v            v                    |
+ Web Ingestion   PostgreSQL              |
+       |            |                    |
+       v            |                    |
+    Chunking        |                    |
+       |            |                    |
+       v            |                    |
+  Embeddings       |                    |
+       |            |                    |
+       v            |                    |
+    ChromaDB <------+--------------------+
+       |
+       v
+ Retrieved Chunks
+       |
+       v
+ Context Builder
+       |
+       v
+   RAGService
+       |
+       v
+   LLMService
+       |
+       v
+ OpenRouter LLM
+       |
+       v
+ Answer + Sources
+```
+---
+Core Pipeline
+1. Web Ingestion
+The system accepts a URL and title through:
+```http
+POST /documents
+```
+Example:
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Example Article"
+}
+```
+`DocumentService` coordinates ingestion.
+The service:
+Checks whether the source already exists.
+Downloads the webpage.
+Extracts its content.
+Creates a `Document`.
+Chunks the document.
+Generates embeddings.
+Stores chunks and embeddings in ChromaDB.
+Persists the document in PostgreSQL.
+Relevant modules:
+```text
+app/ingestion.py
+app/chunking.py
+app/embeddings.py
+app/document_service.py
+```
+---
+2. Document Model
+The document model contains:
+```text
+id
+title
+source
+content
+created_at
+metadata
+```
+UUIDs are used for document IDs.
+Pydantic provides structured request and model validation.
+The document timestamp is generated using a timezone-aware UTC timestamp.
+---
+3. Chunking
+Large documents are divided into smaller overlapping chunks.
+Current configuration:
+```text
+Chunk size: 500 words
+Overlap:     50 words
+```
+The basic process is:
+```text
+Document
+   |
+   v
+Split into words
+   |
+   v
+500-word chunk
+   |
+   +---- 50-word overlap ----+
+                             |
+                             v
+                        Next chunk
+```
+The overlap preserves some context between neighboring chunks.
+Each chunk tracks:
+```text
+id
+document_id
+content
+position
+metadata
+```
+---
+4. Embeddings
+The project uses:
+```text
+sentence-transformers/all-MiniLM-L6-v2
+```
+through the `sentence-transformers` library.
+The model is distributed through Hugging Face.
+The model converts text into numerical vectors representing semantic meaning.
+```text
+"What is machine learning?"
+             |
+             v
+      Embedding Model
+             |
+             v
+     [0.12, -0.43, ...]
+```
+The model name is configured through `app/config.py`, rather than being hardcoded inside the embedding service.
+---
+5. Vector Storage
+Embeddings and chunks are stored in ChromaDB.
+ChromaDB is responsible for semantic vector search.
+Stored metadata includes:
+```text
+document_id
+title
+source
+position
+```
+The vector-store abstraction is implemented in:
+```text
+app/vector_store.py
+```
+This keeps vector database operations separate from API and business logic.
+---
+6. PostgreSQL Persistence
+PostgreSQL stores application-level document information.
+The SQLAlchemy database model is:
+```text
+DocumentRecord
+```
+and the database table is:
+```text
+documents
+```
+Current fields:
+```text
+id
+title
+source
+content
+created_at
+```
+The database stack is:
+```text
+PostgreSQL 16
+SQLAlchemy
+psycopg
+```
+The project intentionally separates relational document storage from vector storage:
+```text
+PostgreSQL
+    |
+    +-- Document metadata
+    +-- Document content
+    +-- Source
+    +-- Creation timestamp
 
-For document ingestion, the flow is:
-
+ChromaDB
+    |
+    +-- Chunk embeddings
+    +-- Chunk content
+    +-- Retrieval metadata
+```
+This also provides a foundation for future users, ownership, collections, permissions, and relationships.
+---
+7. Repository Layer
+Document persistence is abstracted through:
+```text
+DocumentRepository
+```
+The repository exposes:
+```text
+add()
+get()
+get_all()
+get_by_source()
+update()
+delete()
+```
+The repository uses SQLAlchemy sessions rather than exposing database queries directly to the API.
+Architecture:
+```text
+FastAPI
+   |
+   v
+DocumentService
+   |
+   v
+DocumentRepository
+   |
+   v
+SQLAlchemy
+   |
+   v
+PostgreSQL
+```
+---
+8. Document Lifecycle
+Ingestion
+```text
 URL
  |
  v
-Web Ingestion
+Fetch webpage
  |
  v
 Document
  |
  v
-Chunking
+Chunk
  |
  v
-Embeddings
+Embedding
  |
  v
 ChromaDB
  |
  v
-Persistent Knowledge Base
-
-Project Goals
-
-The project is being developed with several goals:
-
-Build a complete RAG backend rather than a standalone AI demo.
-
-Understand semantic search and vector databases through
-implementation.
-
-Practice backend architecture and separation of responsibilities.
-
-Build APIs that are validated and testable.
-
-Persist both documents and vector embeddings.
-
-Provide source attribution for generated answers.
-
-Add evaluation instead of judging the RAG system only by manually
-testing it.
-
-Containerize the application with Docker.
-
-Gradually evolve the project toward a more production-like
-architecture.
-
-Core Features
-
-1. Web Document Ingestion
-
-The API accepts a webpage URL and a title.
-
-The ingestion pipeline:
-
-Downloads the webpage.
-
-Extracts its textual content.
-
-Creates a Document object.
-
-Splits the document into overlapping chunks.
-
-Generates embeddings for every chunk.
-
-Stores the chunks and embeddings in ChromaDB.
-
-Stores document metadata in the document repository.
-
-Example:
-
-POST /documents
-
-{
-  "url": "https://en.wikipedia.org/wiki/Machine_learning",
-  "title": "Machine Learning"
-}
-
-2. Chunking
-
-Large documents are divided into smaller overlapping pieces before
-embedding.
-
-The current implementation uses:
-
-Chunk size: 500 words
-
-Overlap: 50 words
-
-The overlap helps preserve context between neighboring chunks.
-
-For example:
-
-Chunk 1
-[--------------------]
-
-             Chunk 2
-             [--------------------]
-
-                         Chunk 3
-                         [--------------------]
-
-This is important because embedding an entire webpage as one vector
-would make precise retrieval much harder.
-
-3. Embeddings
-
-The project uses:
-
-sentence-transformers/all-MiniLM-L6-v2
-
-Each chunk is transformed into a numerical vector representing its
-semantic meaning.
-
-A query is embedded using the same model.
-
-This allows the system to compare:
-
-"What is machine learning?"
-
-with stored chunks based on semantic similarity rather than simple
-keyword matching.
-
-4. Persistent Vector Search
-
-ChromaDB is used as the vector database.
-
-The vector store persists data under:
-
-data/chroma/
-
-Each stored chunk contains:
-
-Chunk ID
-
-Document ID
-
-Chunk content
-
-Chunk position
-
-Document title
-
-Source URL
-
-The metadata is important because retrieval is not useful by itself
-unless the system can also determine where the retrieved knowledge came
-from.
-
-5. Semantic Retrieval
-
-When a question is submitted:
-
-The question is embedded.
-
-ChromaDB searches the vector collection.
-
-The top k chunks are returned.
-
-A relevance score is calculated.
-
-Chunks below the configured minimum score can be filtered.
-
+PostgreSQL
+```
+Update
+When a document is updated:
+```text
+Existing document
+       |
+       v
+Fetch latest webpage
+       |
+       v
+Re-create chunks
+       |
+       v
+Generate new embeddings
+       |
+       v
+Delete old vectors
+       |
+       v
+Store new vectors
+       |
+       v
+Update document record
+```
+Delete
+```text
+Document
+   |
+   +----> PostgreSQL record removed
+   |
+   +----> ChromaDB vectors removed
+```
+Deleting both representations prevents stale vectors from remaining in the vector store.
+---
+9. Retrieval
+`RetrievalService` handles semantic retrieval.
+The query flow is:
+```text
+Question
+   |
+   v
+Embedding Model
+   |
+   v
+Query Vector
+   |
+   v
+ChromaDB similarity search
+   |
+   v
+Candidate chunks
+```
 The API supports:
-
+```text
 top_k
 min_score
+```
+`top_k` is constrained to:
+```text
+1 <= top_k <= 10
+```
+Retrieved chunks contain:
+```text
+content
+score
+document_id
+position
+title
+source
+```
+The current relevance score is derived from vector-store distance:
+```text
+score = 1 / (1 + distance)
+```
+Chunks below `min_score` are excluded.
+---
+10. RAG Context Construction
+`RAGService` coordinates retrieval and generation.
+```text
+Question
+   |
+   v
+RetrievalService
+   |
+   v
+Retrieved chunks
+   |
+   v
+Context construction
+   |
+   v
+LLMService
+```
+Retrieved chunks are combined into a context string and supplied to the LLM together with the original question.
+---
+11. LLM Integration
+The project uses OpenRouter through the OpenAI-compatible API client.
+Current model configuration:
+```text
+openrouter/free
+```
+The LLM receives:
+```text
+KNOWLEDGE CONTEXT
 
-Current validation:
++
 
-top_k: 1–10
-min_score: 0.0–1.0
-
-6. RAG Generation
-
-The retrieved chunks are passed to an LLM as knowledge context.
-
-The model is explicitly instructed to:
-
-Use only the supplied knowledge.
-
+QUESTION
+```
+The system prompt instructs the model to:
+Use only the provided knowledge context.
 Avoid inventing facts.
-
-Admit when the available context is insufficient.
-
-Conceptually:
-
-Retrieved Knowledge
-        +
-     Question
-        |
-        v
-       LLM
-        |
-        v
-Grounded Answer
-
-This separates the retrieval problem from the generation problem.
-
-7. Source Attribution
-
-Every retrieved chunk contains source information.
-
-The query response therefore returns:
-
+Avoid unsupported assumptions.
+State when the supplied knowledge is insufficient.
+The purpose is to keep generation grounded in retrieved information.
+---
+12. Source Attribution
+The `/query` endpoint returns:
+```text
+answer
+sources
+```
+Each source contains:
+```text
+document_id
+title
+source
+chunk_position
+score
+```
+Example:
+```json
 {
-  "answer": "...",
+  "answer": "Machine learning is ...",
   "sources": [
     {
-      "document_id": "...",
+      "document_id": "document-id",
+      "title": "Machine Learning",
+      "source": "https://example.com",
       "chunk_position": 8,
-      "score": 0.585
+      "score": 0.58
     }
   ]
 }
-
-This makes the system more transparent than returning an answer with no
-indication of where the information came from.
-
-API
-
-GET /
-
-Returns a basic API status message.
-
-GET /health
-
-Health check endpoint.
-
-Example:
-
+```
+The API therefore exposes the knowledge used during retrieval rather than returning only generated text.
+---
+API Reference
+GET `/`
+Returns basic API status.
+GET `/health`
+Returns:
+```json
 {
   "status": "healthy"
 }
-
-POST /query
-
-Ask a question against the knowledge base.
-
-Example:
-
+```
+POST `/documents`
+Ingests a webpage.
+Request:
+```json
+{
+  "url": "https://example.com/article",
+  "title": "Example Article"
+}
+```
+Response:
+```json
+{
+  "document_id": "...",
+  "title": "Example Article",
+  "chunks_created": 20
+}
+```
+GET `/documents`
+Returns stored document summaries.
+GET `/documents/{document_id}`
+Returns the complete document including content and metadata.
+PUT `/documents/{document_id}`
+Re-fetches, re-chunks, re-embeds, and replaces vectors for an existing document.
+DELETE `/documents/{document_id}`
+Deletes the document and its associated vectors.
+POST `/query`
+Runs the complete RAG pipeline.
+Request:
+```json
 {
   "question": "What is machine learning?",
   "top_k": 3,
   "min_score": 0.0
 }
-
-POST /documents
-
-Ingest a webpage into the knowledge base.
-
-Example:
-
+```
+Response:
+```json
 {
-  "url": "https://en.wikipedia.org/wiki/Machine_learning",
-  "title": "Machine Learning"
+  "answer": "...",
+  "sources": [
+    {
+      "document_id": "...",
+      "title": "...",
+      "source": "...",
+      "chunk_position": 2,
+      "score": 0.58
+    }
+  ]
 }
+```
+---
+Validation and Error Handling
+The API uses Pydantic models for request validation.
+Examples:
+```text
+top_k
+1 <= top_k <= 10
 
-GET /documents
-
-List all ingested documents.
-
-GET /documents/{document_id}
-
-Retrieve a specific document and its metadata.
-
-DELETE /documents/{document_id}
-
-Deletes the document and its associated vector chunks.
-
-Architecture
-
-The project follows a service-oriented structure.
-
-                         +----------------+
-                         |     User       |
-                         +-------+--------+
-                                 |
-                                 v
-                         +-------+--------+
-                         |    FastAPI     |
-                         |    app/api.py  |
-                         +---+--------+---+
-                             |        |
-                    Documents|        |Query
-                             |        |
-                             v        v
-                    +--------+--+  +--+-------------+
-                    | Document  |  | Retrieval      |
-                    | Service   |  | Service        |
-                    +-----+-----+  +-------+--------+
-                          |                |
-                          v                v
-                    +-----+-----+    +----+-------+
-                    | Ingestion |    | Embedding  |
-                    | + Chunking|    | Model      |
-                    +-----+-----+    +----+-------+
-                          |                |
-                          +-------+--------+
-                                  |
-                                  v
-                           +------+------+
-                           |  ChromaDB   |
-                           | VectorStore |
-                           +------+------+
-                                  |
-                                  v
-                           Retrieved Chunks
-                                  |
-                                  v
-                           +------+------+
-                           | RAG Service |
-                           +------+------+
-                                  |
-                                  v
-                           +------+------+
-                           | LLM Service |
-                           +------+------+
-                                  |
-                                  v
-                            Answer + Sources
-
+min_score
+0.0 <= min_score <= 1.0
+```
+The API rejects:
+Empty questions
+Empty document titles
+Invalid UUIDs
+Missing required request fields
+Invalid values outside configured ranges
+Expected errors use appropriate HTTP status codes:
+```text
+400 → Invalid request
+404 → Document not found
+500 → Unexpected server error
+```
+A global exception handler prevents raw internal errors from being exposed to clients.
+---
+Logging and Observability
+The API includes HTTP request logging middleware.
+Every request receives a UUID-based request ID.
+The logs record:
+Request ID
+HTTP method
+Path
+Status code
+Request duration
+Document operations
+Query operations
+Retrieved chunk count
+Exceptions
+Responses include:
+```text
+X-Request-ID
+```
+This creates a basic request-tracing mechanism for debugging.
+---
+Automated Testing
+The project contains a Pytest test suite covering the current API and service behavior.
+The tests cover areas including:
+API endpoints
+Validation
+Document lifecycle
+Retrieval
+Service behavior
+Query flow
+The repository also contains an evaluation pipeline:
+```text
+evaluation/evaluate.py
+evaluation/questions.json
+```
+The evaluation measures retrieval behavior against predefined questions and expected sources.
+---
+Evaluation
+The current evaluation dataset contains questions about:
+```text
+Machine Learning
+Artificial Intelligence
+Deep Learning
+```
+The evaluation records:
+```text
+Expected source
+Retrieved sources
+Retrieval scores
+Best retrieval score
+Source hit
+Keyword score
+Matched keywords
+```
+Current baseline:
+```text
+Average keyword score:     0.89
+Retrieval source accuracy: 0.67
+Average retrieval score:   0.562
+Source hits:               2/3
+```
+This baseline provides a measurable reference for future retrieval improvements.
+---
+Docker
+The project is containerized using Docker Compose.
+Services:
+```text
+docker-compose
+      |
+      +----------------+
+      |                |
+      v                v
+    API              PostgreSQL
+  FastAPI              DB
+      |
+      +---- ChromaDB
+      |
+      +---- Embedding Model
+      |
+      +---- OpenRouter
+```
+The API is exposed on:
+```text
+http://localhost:8000
+```
+PostgreSQL runs inside the Compose network.
+Database persistence uses a Docker volume.
+The API waits for PostgreSQL health before starting through the Compose service dependency configuration.
+---
+Configuration
+Configuration is handled with `pydantic-settings`.
+The application reads environment variables from `.env`.
+Important configuration:
+```text
+OPENROUTER_API_KEY
+DATABASE_URL
+```
+The embedding model and vector-store path have application defaults.
+Example:
+```env
+OPENROUTER_API_KEY=your_openrouter_api_key
+DATABASE_URL=postgresql+psycopg://postgres:postgres@db:5432/knowledge
+```
+The real `.env` file must never be committed.
+Use `.env.example` as the template.
+---
 Project Structure
-
+```text
 ai-knowledge-pipeline/
 │
 ├── app/
 │   ├── api.py
-│   ├── chunking.py
 │   ├── config.py
-│   ├── context.py
-│   ├── document_repository.py
-│   ├── document_service.py
-│   ├── embeddings.py
-│   ├── ingestion.py
-│   ├── llm.py
+│   ├── database.py
+│   ├── database_models.py
 │   ├── models.py
-│   ├── rag.py
+│   │
+│   ├── ingestion.py
+│   ├── chunking.py
+│   ├── embeddings.py
+│   │
+│   ├── vector_store.py
 │   ├── retrieval.py
-│   └── vector_store.py
+│   ├── context.py
+│   ├── rag.py
+│   ├── llm.py
+│   │
+│   ├── document_repository.py
+│   └── document_service.py
 │
 ├── evaluation/
 │   ├── evaluate.py
-│   ├── questions.json
-│   └── results.json
+│   └── questions.json
 │
 ├── tests/
-│   ├── test_api.py
-│   ├── test_chunking.py
-│   ├── test_document_delete.py
-│   ├── test_documents.py
-│   ├── test_rag.py
-│   ├── test_rag_evaluation.py
-│   ├── test_retrieval.py
-│   └── test_vector_store.py
 │
 ├── data/
-│   ├── chroma/
-│   └── documents.json
 │
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
-├── .env
+├── .env.example
+├── .gitignore
 └── README.md
-
-Design Decisions
-
-Why FastAPI?
-
-FastAPI provides:
-
-Typed request and response models.
-
-Automatic validation.
-
-OpenAPI documentation.
-
-Easy testing through TestClient.
-
-A clean foundation for building a backend API.
-
-Why ChromaDB?
-
-A traditional relational database is excellent for structured records,
-but semantic retrieval requires vector similarity search.
-
-ChromaDB provides persistent vector storage and similarity search
-without requiring a separate infrastructure stack for this project.
-
-Why Sentence Transformers?
-
-A local embedding model allows the semantic retrieval layer to operate
-without sending every embedding request to an external API.
-
-This also makes the architecture:
-
-Document -> Local Embedding Model -> Vector DB
-Question -> Local Embedding Model -> Vector DB
-
-Why Separate Services?
-
-Instead of putting everything inside api.py, responsibilities are
-separated:
-
-DocumentService
-RetrievalService
-RAGService
-LLMService
-VectorStore
-DocumentRepository
-EmbeddingModel
-
-This makes the system easier to test, replace, and extend.
-
-For example, the LLM provider can eventually be replaced without
-rewriting the retrieval layer.
-
-Data Flow
-
-Document ingestion
-
-POST /documents
-       |
-       v
-DocumentService
-       |
-       v
-fetch_webpage()
-       |
-       v
-Document
-       |
-       v
-chunk_document()
-       |
-       v
-Chunks
-       |
-       v
-EmbeddingModel
-       |
-       v
-Embeddings
-       |
-       +------------------+
-       |                  |
-       v                  v
-   ChromaDB        DocumentRepository
-
-Query
-
-POST /query
-       |
-       v
-RetrievalService
-       |
-       v
-Query Embedding
-       |
-       v
-ChromaDB
-       |
-       v
-Top-K Chunks
-       |
-       v
-RAGService
-       |
-       v
-Context Builder
-       |
-       v
-LLMService
-       |
-       v
-Answer + Sources
-
-Duplicate Document Handling
-
-The system checks whether a document with the same source URL already
-exists.
-
-If it does, ingestion is skipped instead of creating another copy.
-
-This prevents repeated ingestion of the same webpage from unnecessarily
-increasing the vector collection.
-
-Error Handling and Validation
-
-The API validates request data through Pydantic.
-
-Examples include:
-
-Empty questions are rejected.
-
-Empty document titles are rejected.
-
-Invalid top_k values are rejected.
-
-Invalid min_score values are rejected.
-
-Missing documents return 404.
-
-Invalid request bodies return 422.
-
-This keeps invalid input away from the core services.
-
-Testing
-
-The project contains automated tests covering:
-
-Root endpoint
-
-Health endpoint
-
-Query validation
-
-Document validation
-
-Document creation
-
-Document retrieval
-
-Document listing
-
-Document deletion
-
-Duplicate document behavior
-
-Chunking
-
-Vector storage
-
-Retrieval
-
-RAG behavior
-
-Evaluation behavior
-
-Tests are run inside the Docker container:
-
-docker compose exec api python -m pytest -q
-
-RAG Evaluation
-
-The project includes a small evaluation pipeline rather than relying
-exclusively on manual testing.
-
-Evaluation questions currently cover:
-
-Machine learning
-
-Artificial intelligence
-
-Deep learning
-
-The evaluator measures:
-
-Keyword score
-
-Whether expected concepts appear in the generated answer.
-
-Source retrieval accuracy
-
-Whether the expected document appears among retrieved sources.
-
-Retrieval score
-
-The relevance score of retrieved chunks.
-
-Run evaluation with:
-
-docker compose exec api python evaluation/evaluate.py
-
-Results are written to:
-
-evaluation/results.json
-
-The evaluation is intentionally simple at this stage. The future goal is
-to replace the basic keyword metric with stronger automated evaluation.
-
-Docker
-
-The application runs as a Dockerized FastAPI service.
-
-Start the project:
-
-docker compose up -d
-
-Check the container:
-
-docker compose ps
-
-View logs:
-
-docker compose logs --tail=100 api
-
-Stop the project:
-
-docker compose down
-
-The application is exposed on:
-
+```
+---
+Technology Stack
+Technology	Purpose
+Python 3.12	Backend
+FastAPI	REST API
+Pydantic	Validation and models
+Pydantic Settings	Configuration
+SQLAlchemy	ORM
+Psycopg	PostgreSQL driver
+PostgreSQL 16	Document persistence
+ChromaDB	Vector database
+Sentence Transformers	Embeddings
+Hugging Face	Model distribution
+OpenRouter	LLM access
+Docker	Containerization
+Docker Compose	Service orchestration
+Pytest	Testing
+Git/GitHub	Version control
+---
+Running Locally
+Requirements
+Docker Desktop
+WSL2 on Windows
+Git
+OpenRouter API key
+Clone
+```bash
+git clone https://github.com/satyamsh967/ai-knowledge-pipeline.git
+cd ai-knowledge-pipeline
+```
+Environment
+Create `.env`:
+```env
+OPENROUTER_API_KEY=your_openrouter_api_key
+DATABASE_URL=postgresql+psycopg://postgres:postgres@db:5432/knowledge
+```
+Start
+```bash
+docker compose up -d --build
+```
+API:
+```text
 http://localhost:8000
-
-FastAPI's interactive documentation is available through the
-application's Swagger/OpenAPI interface.
-
-Configuration
-
-The application uses environment variables.
-
-Create a .env file containing:
-
-OPENROUTER_API_KEY=your_api_key_here
-
-The .env file should never be committed to Git.
-
-For sharing the project, use:
-
-.env.example
-
-instead.
-
-Current Limitations
-
-This is an intentionally evolving project.
-
-Current limitations include:
-
-The document repository uses a JSON file rather than a production
-relational database.
-
-The vector database runs inside the application environment.
-
-Webpage extraction is still relatively basic.
-
-Embedding generation is currently performed synchronously.
-
-There is no authentication or authorization yet.
-
-There is no user-specific knowledge isolation.
-
-The evaluation dataset is small.
-
-RAG evaluation currently relies on lightweight metrics.
-
-There is no frontend yet.
-
-There is no background job system for large ingestion workloads.
-
-There is no production observability stack yet.
-
-These are not accidental omissions; several of them are planned future
-improvements.
-
-Future Roadmap
-
-The project will evolve in stages.
-
-Phase 1 --- Core RAG Backend
-
-Status: Mostly complete
-
-FastAPI backend
-
-Web document ingestion
-
-Document chunking
-
-Sentence Transformer embeddings
-
-Persistent ChromaDB
-
-Semantic retrieval
-
-Relevance scoring
-
-RAG answer generation
-
-Source attribution
-
-Document CRUD
-
-Duplicate document detection
-
-Input validation
-
-Automated tests
-
-Basic RAG evaluation
-
-Dockerized deployment
-
-Phase 2 --- Production API Improvements
-
-Next priority
-
-Centralized exception handling
-
-Better structured logging
-
-Request IDs
-
-Improved API response schemas
-
-Pagination for documents
-
-Better URL validation
-
-Rate limiting
-
-Configuration improvements
-
-More robust ingestion error handling
-
-Goal:
-
-Turn the current functional backend into a cleaner production-style
-API.
-
-Phase 3 --- Better Retrieval
-
-The current retrieval system is intentionally simple.
-
-Future improvements:
-
-Hybrid keyword + semantic search
-
-Better similarity metrics
-
-Reranking
-
-Metadata filtering
-
-Diversity-aware retrieval
-
-Query expansion
-
-Retrieval evaluation with larger datasets
-
-Experiment with different chunk sizes and overlaps
-
-The objective is to improve the most important part of a RAG system:
-
-retrieving the right knowledge.
-
-Phase 4 --- Better RAG Generation
-
-Planned improvements:
-
-Stronger prompt design
-
-Explicit citation formatting
-
-Context compression
-
-Answer confidence signals
-
-Better handling of insufficient context
-
-Model comparison
-
-LLM evaluation
-
-Hallucination testing
-
-The target behavior is:
-
-Good retrieval
-      +
-Relevant context
-      +
-Controlled generation
-      =
-Reliable answer
-
-Phase 5 --- Database Upgrade
-
-The current JSON document repository is suitable for learning and the
-current scale.
-
-The next backend upgrade will move document metadata to a real database.
-
-Potential stack:
-
-PostgreSQL
-    +
-SQLAlchemy
-    +
-Alembic
-
-The architecture should become:
-
-FastAPI
-   |
-   +---- PostgreSQL
-   |
-   +---- ChromaDB
-   |
-   +---- LLM
-
-Phase 6 --- Authentication and Multi-User Knowledge Bases
-
-Planned features:
-
-User registration/login
-
-JWT authentication
-
-User ownership
-
-Per-user documents
-
-Authorization checks
-
-Private knowledge bases
-
-Document ownership enforcement
-
-Eventually:
-
-User A -> Knowledge Base A
-User B -> Knowledge Base B
-
-with strict isolation between them.
-
-Phase 7 --- Background Processing
-
-Large document ingestion should not block an HTTP request.
-
-Future architecture:
-
-POST /documents
-       |
-       v
-Create ingestion job
-       |
-       v
-Queue
-       |
-       v
-Worker
-       |
-       +--> Download
-       +--> Parse
-       +--> Chunk
-       +--> Embed
-       +--> Store
-
-Potential technologies:
-
-Celery
-
-Redis
-
-Dramatiq
-
-Background workers
-
-The API could then return a job ID and expose job status.
-
-Phase 8 --- Observability
-
-Production systems need visibility into what is happening.
-
-Planned additions:
-
-Structured logs
-
-Request latency
-
-Retrieval latency
-
-Embedding latency
-
-LLM latency
-
-Error rates
-
-Token usage
-
-Retrieval quality metrics
-
-Health/readiness checks
-
-Eventually the system should make it possible to answer:
-
-Why was this answer slow?
-
-and:
-
-Why did the system retrieve the wrong document?
-
-Phase 9 --- Frontend
-
-After the backend is mature, a frontend can be added.
-
-Possible interface:
-
-+---------------------------------------+
-|        AI Knowledge Assistant         |
-+---------------------------------------+
-|                                       |
-|  Ask a question...              [Ask] |
-|                                       |
-+---------------------------------------+
-| Answer                                |
-|                                       |
-| ...                                   |
-|                                       |
-+---------------------------------------+
-| Sources                               |
-|                                       |
-| Machine Learning - Chunk 8            |
-| Deep Learning - Chunk 21              |
-+---------------------------------------+
-
-The frontend would also provide:
-
-Document management
-
-Upload/URL ingestion
-
-Search
-
-Source inspection
-
-Query history
-
-Knowledge-base management
-
-Phase 10 --- Deployment
-
-Final deployment goals:
-
-GitHub
-   |
-   v
-CI/CD
-   |
-   v
-Docker Image
-   |
-   v
-Cloud Deployment
-
-Potential infrastructure:
-
-Cloud VM/container platform
-
-Managed PostgreSQL
-
-Persistent vector storage
-
-HTTPS
-
-Secret management
-
-CI/CD
-
-Monitoring
-
-Long-Term Architecture
-
-The long-term goal is to evolve the project toward:
-
-                         Internet
-                            |
-                            v
-                    +---------------+
-                    |    Frontend   |
-                    +-------+-------+
-                            |
-                            v
-                    +---------------+
-                    |    FastAPI    |
-                    +-------+-------+
-                            |
-             +--------------+--------------+
-             |              |              |
-             v              v              v
-        PostgreSQL       Redis          Auth
-             |              |
-             |              v
-             |           Workers
-             |              |
-             |       +------+------+ 
-             |       |             |
-             |       v             v
-             |    Ingestion     Embedding
-             |       |             |
-             |       +------+------+
-             |              |
-             v              v
-        Metadata        ChromaDB
-                            |
-                            v
-                       Retrieval
-                            |
-                            v
-                       Reranking
-                            |
-                            v
-                         Context
-                            |
-                            v
-                           LLM
-                            |
-                            v
-                    Answer + Citations
-
-What I Am Learning From This Project
-
-This project is intentionally being used as a learning vehicle.
-
-The major concepts covered include:
-
-Backend Engineering
-
-REST APIs
-
-Request validation
-
-Response models
-
-Service architecture
-
-Repository pattern
-
-Error handling
-
-Testing
-
-Docker
-
-AI / ML Engineering
-
-Embeddings
-
-Semantic similarity
-
-Vector databases
-
-Retrieval
-
-RAG
-
-Prompt construction
-
-LLM integration
-
-Evaluation
-
-Systems Thinking
-
-The most important lesson is that an AI application is not simply:
-
-Prompt -> LLM
-
-A useful production-oriented AI system requires several interconnected
-layers:
-
-Data
- |
- v
-Ingestion
- |
- v
-Transformation
- |
- v
-Representation
- |
- v
-Storage
- |
- v
-Retrieval
- |
- v
-Context
- |
- v
-Generation
- |
- v
-Evaluation
- |
- v
-Monitoring
-
-Understanding how these pieces interact is one of the main purposes of
-this project.
-
-Development Philosophy
-
-The project is being developed incrementally.
-
-Rather than attempting to build a massive AI platform immediately, each
-stage introduces one additional engineering challenge while keeping the
-previous functionality working.
-
-The progression is:
-
-Working prototype
-       |
-       v
-Better architecture
-       |
-       v
-Better retrieval
-       |
-       v
-Better evaluation
-       |
-       v
-Production concerns
-       |
-       v
-Scalability
-       |
-       v
-Deployment
-
-This approach makes it possible to understand why each technology is
-being introduced instead of simply assembling a collection of
-frameworks.
-
-Current Technical Stack
-
-Component          Technology
-
-Language           Python
-API                FastAPI
-Validation         Pydantic
-Embeddings         Sentence Transformers
-Embedding Model    all-MiniLM-L6-v2
-Vector Database    ChromaDB
-LLM Gateway        OpenRouter
-HTTP Client        OpenAI Python SDK
-Document Storage   JSON
-Testing            Pytest
-Containerization   Docker
-Orchestration      Docker Compose
-
-Running the Project
-
-From the project directory:
-
-docker compose up -d
-
-Check:
-
-docker compose ps
-
-Health check:
-
-curl http://127.0.0.1:8000/health
-
-Add a document:
-
-curl -X POST http://127.0.0.1:8000/documents \
-  -H "Content-Type: application/json" \
-  -d '{"url":"https://en.wikipedia.org/wiki/Machine_learning","title":"Machine Learning"}'
-
-List documents:
-
-curl http://127.0.0.1:8000/documents
-
-Ask a question:
-
-curl -X POST http://127.0.0.1:8000/query \
-  -H "Content-Type: application/json" \
-  -d '{"question":"What is machine learning?","top_k":3,"min_score":0.0}'
-
-Run tests:
-
-docker compose exec api python -m pytest -q
-
-Run evaluation:
-
-docker compose exec api python evaluation/evaluate.py
-
+```
+Swagger:
+```text
+http://localhost:8000/docs
+```
 Stop:
-
+```bash
 docker compose down
-
-Final Objective
-
-The end goal is not merely to have an application that can answer
-questions.
-
-The goal is to build a system that demonstrates the engineering required
-to make AI applications:
-
-Grounded
-
-Testable
-
-Observable
-
-Maintainable
-
-Scalable
-
-Secure
-
-Deployable
-
-The current implementation is the foundation.
-
-The roadmap is to progressively transform that foundation into a
-production-style AI knowledge platform.
+```
+---
+Example End-to-End Workflow
+```text
+1. Start Docker Compose
+        |
+        v
+2. POST /documents
+        |
+        v
+3. Webpage fetched
+        |
+        v
+4. Document created
+        |
+        v
+5. Document chunked
+        |
+        v
+6. Embeddings generated
+        |
+        v
+7. PostgreSQL stores document
+        |
+        v
+8. ChromaDB stores chunks/vectors
+        |
+        v
+9. POST /query
+        |
+        v
+10. Query embedded
+        |
+        v
+11. ChromaDB retrieves relevant chunks
+        |
+        v
+12. Context constructed
+        |
+        v
+13. OpenRouter generates answer
+        |
+        v
+14. Answer + sources returned
+```
+---
+Current Limitations
+The current implementation intentionally focuses on the core RAG architecture.
+Known limitations:
+Basic webpage extraction
+Fixed-size word-based chunking
+Semantic retrieval without reranking
+Small evaluation dataset
+No authentication
+No user accounts
+No document ownership
+No background ingestion workers
+No streaming LLM responses
+No rate limiting
+No production migration framework
+Limited metrics and observability
+No production deployment
+No frontend
+These limitations define the next development phases.
+---
+Future Development Plan
+The long-term goal is to evolve this core RAG backend into a complete personal/team knowledge platform.
+Phase 1 — Core RAG
+Status: Completed
+[x] FastAPI REST API
+[x] Web ingestion
+[x] Document validation
+[x] Document chunking
+[x] Sentence Transformer embeddings
+[x] ChromaDB vector storage
+[x] Semantic retrieval
+[x] Relevance scoring
+[x] RAG context construction
+[x] OpenRouter integration
+[x] Source attribution
+[x] PostgreSQL persistence
+[x] Document CRUD
+[x] Docker
+[x] Docker Compose
+[x] Request logging
+[x] Error handling
+[x] Configuration management
+[x] Automated tests
+[x] Retrieval evaluation
+---
+Phase 2 — Authentication and Multi-User Knowledge
+Planned
+Introduce users and ownership.
+Planned features:
+JWT authentication
+User registration
+Login
+Password hashing
+Access tokens
+User-specific documents
+Ownership-based authorization
+Protected endpoints
+User isolation
+Target relationship:
+```text
+User
+ |
+ +---- Documents
+ |
+ +---- Collections
+ |
+ +---- Queries
+```
+Database direction:
+```text
+users
+  |
+  +---- documents
+           |
+           +---- chunks/vectors
+```
+---
+Phase 3 — Improved Retrieval
+Planned
+The current system uses vector similarity as its main retrieval mechanism.
+Future improvements:
+Metadata filtering
+Search only within:
+A document
+A collection
+A source
+A user's knowledge base
+Hybrid search
+Combine:
+```text
+Semantic Search
+      +
+Keyword Search
+```
+Reranking
+Future retrieval architecture:
+```text
+Query
+  |
+  v
+Vector Search
+  |
+  v
+Top 20 candidates
+  |
+  v
+Reranker
+  |
+  v
+Top 5 relevant chunks
+  |
+  v
+LLM
+```
+Retrieval improvements will be evaluated against larger datasets rather than relying only on subjective answer quality.
+---
+Phase 4 — Better Document Processing
+Planned
+Expand ingestion beyond webpages.
+Potential support:
+PDF
+Markdown
+Plain text
+DOCX
+File uploads
+Multiple URLs
+Sitemap ingestion
+Potential chunking strategies:
+Sentence-aware chunking
+Paragraph-aware chunking
+Recursive chunking
+Token-based chunking
+Structure-aware chunking
+---
+Phase 5 — Background Processing
+Planned
+Large documents should not block API requests.
+Future architecture:
+```text
+Client
+  |
+  v
+FastAPI
+  |
+  v
+Task Queue
+  |
+  +------------------+
+  |                  |
+  v                  v
+Ingestion Worker   Embedding Worker
+  |                  |
+  +--------+---------+
+           |
+           v
+      Vector Store
+```
+Potential technologies:
+```text
+Redis
+Celery / RQ
+Background workers
+```
+The API could return a job ID while processing continues asynchronously.
+---
+Phase 6 — Advanced RAG
+Planned
+The retrieval and generation pipeline can evolve into:
+```text
+Query
+ |
+ v
+Query preprocessing
+ |
+ v
+Hybrid retrieval
+ |
+ v
+Reranking
+ |
+ v
+Context compression
+ |
+ v
+Context assembly
+ |
+ v
+LLM
+ |
+ v
+Answer + citations
+```
+Potential features:
+Query rewriting
+Multi-query retrieval
+Context compression
+Reranking
+Citation-aware generation
+Conversation memory
+Follow-up questions
+Confidence estimation
+---
+Phase 7 — Production Engineering
+Planned
+Production-oriented improvements:
+Alembic database migrations
+Rate limiting
+API versioning
+Redis caching
+Prometheus metrics
+Grafana dashboards
+Distributed tracing
+Structured JSON logs
+CI/CD
+Automated Docker builds
+Security hardening
+Production deployment
+Secrets management
+Horizontal scaling
+---
+Phase 8 — Frontend
+Planned
+A frontend can eventually be added on top of the API.
+Potential interface:
+```text
++------------------------------------------------+
+|              AI Knowledge Base                 |
++------------------------------------------------+
+|                                                |
+|  Documents                                     |
+|  --------------------------------------------  |
+|  Machine Learning                             |
+|  Artificial Intelligence                      |
+|  Deep Learning                                |
+|                                                |
+|  [ Add Document ]                              |
+|                                                |
++------------------------------------------------+
+|                                                |
+|  Ask your knowledge base...                    |
+|                                                |
+|  [ What is machine learning? ] [Ask]          |
+|                                                |
++------------------------------------------------+
+|                                                |
+|  Answer                                        |
+|  --------------------------------------------  |
+|  ...                                           |
+|                                                |
+|  Sources                                       |
+|  - Machine Learning, chunk 8                  |
+|  - Machine Learning, chunk 2                  |
+|                                                |
++------------------------------------------------+
+```
+The frontend will remain separate from the backend so that the API remains independently usable.
+---
+Long-Term Architecture
+The eventual system is intended to become:
+```text
+                         Client
+                           |
+                           v
+                    API Gateway / FastAPI
+                           |
+              +------------+-------------+
+              |                          |
+              v                          v
+       Authentication               Query Service
+              |                          |
+              v                          v
+          PostgreSQL              Retrieval Pipeline
+              |                          |
+              |                  +-------+-------+
+              |                  |               |
+              |                  v               v
+              |             Vector Search   Keyword Search
+              |                  |               |
+              |                  +-------+-------+
+              |                          |
+              |                       Reranker
+              |                          |
+              |                          v
+              |                    Context Builder
+              |                          |
+              |                          v
+              |                         LLM
+              |                          |
+              |                          v
+              |                   Answer + Citations
+              |
+              |
+       Document Management
+              |
+              v
+       Background Workers
+              |
+       +------+------+
+       |             |
+       v             v
+    Ingestion    Embeddings
+       |             |
+       +------+------+
+              |
+              v
+          Vector DB
+```
+---
+Engineering Goals
+The long-term goals are:
+Build a reliable RAG pipeline.
+Understand retrieval instead of treating it as a black box.
+Separate application data from vector data.
+Keep components independently replaceable.
+Introduce authentication and authorization.
+Improve retrieval quality using measurable evaluation.
+Process documents asynchronously.
+Add production observability.
+Containerize and deploy the system.
+Build a complete AI backend rather than only an LLM wrapper.
+---
+Learning Goals
+Backend Engineering
+REST API design
+Request validation
+Service layers
+Repository patterns
+Error handling
+Logging
+Database integration
+API architecture
+AI Engineering
+Embeddings
+Vector databases
+Semantic search
+Retrieval pipelines
+Context construction
+RAG
+LLM integration
+Retrieval evaluation
+Infrastructure
+Docker
+Docker Compose
+PostgreSQL
+Environment configuration
+Service dependencies
+Persistent storage
+Software Engineering
+Separation of concerns
+Testing
+Evaluation
+Configuration management
+Version control
+Incremental development
+---
+Development Philosophy
+The project is being developed incrementally.
+Instead of immediately attempting to build a large production platform, the system is expanded layer by layer:
+```text
+Basic API
+   ↓
+Document ingestion
+   ↓
+Chunking
+   ↓
+Embeddings
+   ↓
+Vector retrieval
+   ↓
+RAG
+   ↓
+Persistent storage
+   ↓
+Source attribution
+   ↓
+Authentication
+   ↓
+Advanced retrieval
+   ↓
+Background processing
+   ↓
+Observability
+   ↓
+Deployment
+```
+Each layer is intended to build understanding of the engineering problem before introducing the next level of complexity.
+---
+Future Vision
+The final goal is to transform this project from a RAG API into a complete personal/team knowledge platform where users can:
+Create accounts
+Upload or ingest knowledge
+Organize documents into collections
+Search their knowledge semantically
+Ask questions about their data
+Receive grounded answers
+Inspect citations
+Manage document ownership
+Process large knowledge bases asynchronously
+Monitor system performance
+The backend will remain modular so that individual components such as the embedding model, vector database, retrieval strategy, or LLM provider can be replaced without rewriting the entire system.
+---
+License
+This project is currently intended as a learning and portfolio project.
