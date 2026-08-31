@@ -1,17 +1,11 @@
-import os
-
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-
-DATABASE_URL = os.getenv(
-    "DATABASE_URL",
-    "postgresql+psycopg://postgres:postgres@db:5432/knowledge"
-)
+from app.config import settings
 
 
 engine = create_engine(
-    DATABASE_URL,
+    settings.database_url,
     pool_pre_ping=True
 )
 

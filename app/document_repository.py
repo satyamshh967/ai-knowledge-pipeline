@@ -10,9 +10,7 @@ from app.models import Document
 class DocumentRepository:
 
     def add(self, document: Document):
-
         with SessionLocal() as session:
-
             record = DocumentRecord(
                 id=str(document.id),
                 title=document.title,
@@ -25,9 +23,7 @@ class DocumentRepository:
             session.commit()
 
     def get_all(self):
-
         with SessionLocal() as session:
-
             records = session.scalars(
                 select(DocumentRecord).order_by(
                     DocumentRecord.created_at
@@ -46,9 +42,7 @@ class DocumentRepository:
             ]
 
     def get(self, document_id: UUID):
-
         with SessionLocal() as session:
-
             record = session.get(
                 DocumentRecord,
                 str(document_id)
@@ -66,9 +60,7 @@ class DocumentRepository:
             )
 
     def get_by_source(self, source: str):
-
         with SessionLocal() as session:
-
             record = session.scalar(
                 select(DocumentRecord).where(
                     DocumentRecord.source == source
@@ -87,9 +79,7 @@ class DocumentRepository:
             )
 
     def update(self, document: Document):
-
         with SessionLocal() as session:
-
             record = session.get(
                 DocumentRecord,
                 str(document.id)
@@ -108,9 +98,7 @@ class DocumentRepository:
             return True
 
     def delete(self, document_id: UUID):
-
         with SessionLocal() as session:
-
             record = session.get(
                 DocumentRecord,
                 str(document_id)

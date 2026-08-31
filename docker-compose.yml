@@ -12,14 +12,12 @@ services:
     env_file:
       - .env
 
-    environment:
-      DATABASE_URL: postgresql+psycopg://postgres:postgres@db:5432/knowledge
-
     volumes:
       - ./data:/app/data
 
     depends_on:
-      - db
+      db:
+        condition: service_healthy
 
     restart: unless-stopped
 
@@ -34,8 +32,13 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d knowledge"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
+    restart: unless-stopped
 
 volumes:
   postgres_data:

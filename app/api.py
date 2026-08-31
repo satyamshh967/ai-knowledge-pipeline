@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.database import Base, engine
 import app.database_models
+
 Base.metadata.create_all(bind=engine)
 
 from app.embeddings import EmbeddingModel
@@ -17,9 +18,6 @@ from app.retrieval import RetrievalService
 from app.vector_store import VectorStore
 from app.document_service import DocumentService
 from app.document_repository import DocumentRepository
-
-
-Base.metadata.create_all(bind=engine)
 
 
 logging.basicConfig(
@@ -219,15 +217,15 @@ def query(
     )
 
     sources = [
-    Source(
-        document_id=str(chunk.document_id),
-        title=chunk.title,
-        source=chunk.source,
-        chunk_position=chunk.position,
-        score=chunk.score
-    )
-    for chunk in retrieved_chunks
-]
+        Source(
+            document_id=str(chunk.document_id),
+            title=chunk.title,
+            source=chunk.source,
+            chunk_position=chunk.position,
+            score=chunk.score
+        )
+        for chunk in retrieved_chunks
+    ]
 
     logger.info(
         "Query completed | chunks_retrieved=%s",
@@ -323,6 +321,7 @@ def get_document(
         "metadata": document.metadata
     }
 
+
 @app.put(
     "/documents/{document_id}",
     response_model=DocumentResponse
@@ -365,6 +364,7 @@ def update_document(
         "title": document.title,
         "chunks_created": len(chunks)
     }
+
 
 @app.delete("/documents/{document_id}")
 def delete_document(

@@ -1,16 +1,21 @@
 from sentence_transformers import SentenceTransformer
 
+from app.config import settings
 from app.models import Chunk
 
 
 class EmbeddingModel:
+
     def __init__(self):
         self.model = SentenceTransformer(
-            "sentence-transformers/all-MiniLM-L6-v2"
+            settings.embedding_model
         )
 
     def embed_chunks(self, chunks: list[Chunk]):
-        texts = [chunk.content for chunk in chunks]
+        texts = [
+            chunk.content
+            for chunk in chunks
+        ]
 
         return self.model.encode(
             texts,

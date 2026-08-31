@@ -11,3 +11,4 @@ chroma/
 *.db
 *.sqlite
 evaluation/results.json
+data/
