@@ -26,6 +26,10 @@ def chunk_document(
                 document_id=document.id,
                 content=content,
                 position=position,
+                metadata={
+                    "title": document.title,
+                    "source": str(document.source)
+                }
             )
         )
 

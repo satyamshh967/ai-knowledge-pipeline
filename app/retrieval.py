@@ -4,6 +4,7 @@ from app.vector_store import VectorStore
 
 
 class RetrievalService:
+
     def __init__(
         self,
         embedding_model: EmbeddingModel,
@@ -16,10 +17,12 @@ class RetrievalService:
         self,
         query: str,
         top_k: int = 3,
-        min_score: float = 0.35
+        min_score: float = 0.0
     ) -> list[RetrievedChunk]:
 
-        query_embedding = self.embedding_model.model.encode(query)
+        query_embedding = self.embedding_model.model.encode(
+            query
+        )
 
         results = self.vector_store.search(
             query_embedding,
@@ -40,16 +43,18 @@ class RetrievalService:
 
             score = 1 / (1 + distance)
 
-            chunk = RetrievedChunk(
-                content=document,
-                score=score,
-                document_id=metadata["document_id"],
-                position=metadata["position"],
-                title=metadata.get("title", ""),
-                source=metadata.get("source", "")
-            )
+            if score < min_score:
+                continue
 
-            if chunk.score >= min_score:
-                retrieved_chunks.append(chunk)
+            retrieved_chunks.append(
+                RetrievedChunk(
+                    content=document,
+                    score=score,
+                    document_id=metadata["document_id"],
+                    position=metadata["position"],
+                    title=metadata.get("title", ""),
+                    source=metadata.get("source", "")
+                )
+            )
 
         return retrieved_chunks

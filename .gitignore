@@ -1,6 +1,13 @@
-venv/
 .env
+.venv/
+venv/
 __pycache__/
-*.pyc
+*.py[cod]
 .pytest_cache/
+.mypy_cache/
+.vscode/
 data/
+chroma/
+*.db
+*.sqlite
+evaluation/results.json

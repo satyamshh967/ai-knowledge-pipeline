@@ -1,0 +1,25 @@
+[
+    {
+        "question": "What is machine learning?",
+        "expected_source": "Machine Learning",
+        "expected_keywords": [
+            "machine learning",
+            "artificial intelligence",
+            "data"
+        ]
+    },
+    {
+        "question": "What is artificial intelligence?",
+        "expected_source": "Artificial Intelligence",
+        "expected_keywords": [
+            "artificial intelligence"
+        ]
+    },
+    {
+        "question": "What is deep learning?",
+        "expected_source": "Deep Learning",
+        "expected_keywords": [
+            "deep learning"
+        ]
+    }
+]

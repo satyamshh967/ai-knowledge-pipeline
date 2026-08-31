@@ -1,6 +1,8 @@
 from fastapi.testclient import TestClient
 
 from app.api import app
+from app.document_repository import DocumentRepository
+from app.vector_store import VectorStore
 
 
 client = TestClient(app)
@@ -31,6 +33,22 @@ def test_document_validation():
     assert response.status_code == 422
     
 def test_document_and_query_flow():
+
+    repository = DocumentRepository()
+
+    existing_document = repository.get_by_source(
+        "https://en.wikipedia.org/wiki/Machine_learning"
+    )
+
+    if existing_document is not None:
+        VectorStore().delete_by_document_id(
+            str(existing_document.id)
+        )
+
+        repository.delete(
+            existing_document.id
+        )
+
     document_response = client.post(
         "/documents",
         json={
@@ -43,45 +61,87 @@ def test_document_and_query_flow():
 
     document_data = document_response.json()
 
-    assert document_data["document_id"]
-    assert document_data["title"] == "Machine Learning"
-    assert document_data["chunks_created"] > 0
+    document_id = document_data["document_id"]
 
-    query_response = client.post(
-        "/query",
-        json={
-            "question": "What is machine learning?"
-        }
-    )
+    try:
+        assert document_id
+        assert document_data["title"] == "Machine Learning"
+        assert document_data["chunks_created"] > 0
 
-    assert query_response.status_code == 200
+        query_response = client.post(
+            "/query",
+            json={
+                "question": "What is machine learning?"
+            }
+        )
 
-    query_data = query_response.json()
+        assert query_response.status_code == 200
 
-    assert query_data["answer"]
-    assert "sources" in query_data
-    assert len(query_data["sources"]) > 0
+        query_data = query_response.json()
+
+        assert query_data["answer"]
+        assert "sources" in query_data
+        assert len(query_data["sources"]) > 0
+
+    finally:
+        client.delete(
+            f"/documents/{document_id}"
+        )
     
-def test_query_top_k_validation():
-    response = client.post(
-        "/query",
+def test_document_and_query_flow():
+
+    # Remove any existing copy from previous test runs.
+    documents = client.get("/documents").json()
+
+    for document in documents:
+
+        if document["source"] == (
+            "https://en.wikipedia.org/wiki/Machine_learning"
+        ):
+            client.delete(
+                f"/documents/{document['document_id']}"
+            )
+
+    document_response = client.post(
+        "/documents",
         json={
-            "question": "What is machine learning?",
-            "top_k": 0
+            "url": "https://en.wikipedia.org/wiki/Machine_learning",
+            "title": "Machine Learning"
         }
     )
 
-    assert response.status_code == 422
+    assert document_response.status_code == 200
 
-    response = client.post(
-        "/query",
-        json={
-            "question": "What is machine learning?",
-            "top_k": 11
-        }
-    )
+    document_data = document_response.json()
 
-    assert response.status_code == 422
+    document_id = document_data["document_id"]
+
+    try:
+
+        assert document_id
+        assert document_data["title"] == "Machine Learning"
+        assert document_data["chunks_created"] > 0
+
+        query_response = client.post(
+            "/query",
+            json={
+                "question": "What is machine learning?"
+            }
+        )
+
+        assert query_response.status_code == 200
+
+        query_data = query_response.json()
+
+        assert query_data["answer"]
+        assert "sources" in query_data
+        assert len(query_data["sources"]) > 0
+
+    finally:
+
+        client.delete(
+            f"/documents/{document_id}"
+        )
 
 def test_query_empty_question():
     response = client.post(

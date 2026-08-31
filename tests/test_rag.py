@@ -4,7 +4,12 @@ from app.models import RetrievedChunk
 
 class FakeRetrievalService:
 
-    def retrieve(self, question, top_k=3):
+    def retrieve(
+        self,
+        question,
+        top_k=3,
+        min_score=0.0
+    ):
         return [
             RetrievedChunk(
                 content="Machine learning is a subset of artificial intelligence.",

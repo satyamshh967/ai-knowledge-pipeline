@@ -1,80 +1,125 @@
-from pathlib import Path
 from uuid import UUID
-import json
 
+from sqlalchemy import select
+
+from app.database import SessionLocal
+from app.database_models import DocumentRecord
 from app.models import Document
-from app.config import settings
 
 
 class DocumentRepository:
 
-    def __init__(self, path: str | None = None):
-
-        if path is None:
-            path = settings.document_store_path
-
-        self.path = Path(path)
-
-        self.path.parent.mkdir(
-            parents=True,
-            exist_ok=True
-        )
-
-        if not self.path.exists():
-            self.path.write_text("[]")
-
-    def _load(self):
-        return json.loads(
-            self.path.read_text()
-        )
-
-    def _save(self, documents):
-        self.path.write_text(
-            json.dumps(
-                documents,
-                indent=2
-            )
-        )
-
     def add(self, document: Document):
 
-        documents = self._load()
+        with SessionLocal() as session:
 
-        documents.append(
-            document.model_dump(mode="json")
-        )
+            record = DocumentRecord(
+                id=str(document.id),
+                title=document.title,
+                source=str(document.source),
+                content=document.content,
+                created_at=document.created_at
+            )
 
-        self._save(documents)
+            session.add(record)
+            session.commit()
 
     def get_all(self):
 
-        return [
-            Document(**document)
-            for document in self._load()
-        ]
+        with SessionLocal() as session:
+
+            records = session.scalars(
+                select(DocumentRecord).order_by(
+                    DocumentRecord.created_at
+                )
+            ).all()
+
+            return [
+                Document(
+                    id=UUID(record.id),
+                    title=record.title,
+                    source=record.source,
+                    content=record.content,
+                    created_at=record.created_at
+                )
+                for record in records
+            ]
 
     def get(self, document_id: UUID):
 
-        for document in self.get_all():
+        with SessionLocal() as session:
 
-            if document.id == document_id:
-                return document
+            record = session.get(
+                DocumentRecord,
+                str(document_id)
+            )
 
-        return None
+            if record is None:
+                return None
+
+            return Document(
+                id=UUID(record.id),
+                title=record.title,
+                source=record.source,
+                content=record.content,
+                created_at=record.created_at
+            )
+
+    def get_by_source(self, source: str):
+
+        with SessionLocal() as session:
+
+            record = session.scalar(
+                select(DocumentRecord).where(
+                    DocumentRecord.source == source
+                )
+            )
+
+            if record is None:
+                return None
+
+            return Document(
+                id=UUID(record.id),
+                title=record.title,
+                source=record.source,
+                content=record.content,
+                created_at=record.created_at
+            )
+
+    def update(self, document: Document):
+
+        with SessionLocal() as session:
+
+            record = session.get(
+                DocumentRecord,
+                str(document.id)
+            )
+
+            if record is None:
+                return False
+
+            record.title = document.title
+            record.source = str(document.source)
+            record.content = document.content
+            record.created_at = document.created_at
+
+            session.commit()
+
+            return True
 
     def delete(self, document_id: UUID):
 
-        documents = self._load()
+        with SessionLocal() as session:
 
-        remaining = [
-            document
-            for document in documents
-            if document["id"] != str(document_id)
-        ]
+            record = session.get(
+                DocumentRecord,
+                str(document_id)
+            )
 
-        if len(remaining) == len(documents):
-            return False
+            if record is None:
+                return False
 
-        self._save(remaining)
+            session.delete(record)
+            session.commit()
 
-        return True
+            return True
